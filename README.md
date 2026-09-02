@@ -65,6 +65,20 @@ The project also uses or recommends these practices:
 - Use HTTPS for the deployed health endpoint and make the smoke-test URL configurable.
 - Do not place static AWS credentials in workflow files or repository secrets when OIDC can provide temporary credentials.
 
+## `main` branch ruleset
+
+The repository applies a ruleset to `main`, the branch used by the deployment workflow. These settings keep changes reviewable and preserve a reliable history:
+
+- **Restrict deletions:** Prevents the branch from being deleted accidentally.
+- **Require linear history:** Keeps merges in a straight line, which makes the deployment history easier to read and trace.
+- **Require signed commits:** Adds a verifiable identity check to commits merged into `main`.
+- **Require a pull request before merging:** Keeps direct changes out of the protected branch and creates a place for review and CI checks.
+- **Require review from Code Owners:** Requires the people responsible for a file or directory to approve changes to it.
+- **Require approval of the most recent reviewable push:** Makes a new review necessary when the latest push changes the code being reviewed.
+- **Block force pushes:** Protects existing commits and prevents the branch history from being rewritten.
+
+Together, these rules make `main` the controlled path to deployment. They do not replace CI, IAM permissions, or deployment checks, but they add repository-level safeguards before a change reaches those systems.
+
 ## Pipeline design
 
 Pull requests targeting `main` and pushes to `main` run CI. The matrix checks the API on Node.js 18 and 20. Each job installs dependencies with `npm ci`, then runs ESLint, Jest, and the high-severity dependency audit.
