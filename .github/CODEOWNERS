@@ -1,0 +1,19 @@
+# for demonstration only
+# Default: repo owner reviews everything else
+*                           @Ja-Gia772473
+
+# Application code and tests: developer(s) can work here
+/src/                       @Ja-Gia772473 @JackieG8803
+/tests/                     @Ja-Gia772473 @JackieG8803
+
+# DevOps and repository governance: owner only
+/.github/workflows/         @Ja-Gia772473
+/.github/actions/           @Ja-Gia772473
+/.github/CODEOWNERS         @Ja-Gia772473
+/.github/pull_request_template.md   @Ja-Gia772473
+
+# Dependency and tooling changes: owner review
+/package.json               @Ja-Gia772473
+/package-lock.json          @Ja-Gia772473
+/eslint.config.js           @Ja-Gia772473
+/.prettierrc                @Ja-Gia772473
