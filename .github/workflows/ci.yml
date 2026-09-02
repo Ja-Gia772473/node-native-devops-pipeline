@@ -1,0 +1,46 @@
+name: Continuous Integration
+
+# Run these checks for pull requests targeting main and for pushes to main.
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  # Run the build and test checks in one job.
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    # Test the API against both supported Node.js versions.
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+
+    steps:
+      # Check out the repository.
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      # Set up Node.js and reuse npm's cache when the package files are unchanged.
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      # Install dependencies from the lockfile with npm ci.
+      - name: Install Dependencies
+        run: npm ci
+
+      # Check code style with ESLint.
+      - name: Enforce Code Style (ESLint)
+        run: npm run lint
+
+      # Run the Jest unit tests.
+      - name: Execute Unit Tests (Jest)
+        run: npm test
+
+      # Scan dependencies for known CVEs (Common Vulnerabilities and Exposures).
+      - name: Dependency Vulnerability Scan
+        run: npm audit --audit-level=high
