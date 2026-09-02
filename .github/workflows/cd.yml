@@ -1,0 +1,81 @@
+name: Continuous Deployment
+
+# Run this pipeline when code is pushed or merged to main.
+on:
+  push:
+    branches: [ "main" ]
+
+# AWS and deployment settings.
+env:
+  AWS_ROLE_ARN: arn:aws:iam::278035645036:role/GitHubActions-Beanstalk-DeployRole
+  AWS_REGION: us-east-2 
+  EB_APP_NAME: node-native-api
+  EB_ENV_NAME: Node-native-api-env
+  # Generate the version label from the Git commit hash.
+  VERSION_LABEL: "ver-${{ github.sha }}" 
+  DEPLOY_PACKAGE_NAME: "app-${{ github.sha }}.zip"
+
+# Allow the workflow to request a temporary AWS OIDC token.
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      # Package the application for Elastic Beanstalk.
+      # Beanstalk installs production dependencies on the EC2 instance, so node_modules is not included.
+      - name: Create Deployment Package
+        run: |
+          zip -r ${{ env.DEPLOY_PACKAGE_NAME }} src package.json package-lock.json
+          
+      # Authenticate with AWS through OIDC using the role ARN.
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # Create an Elastic Beanstalk application version with the AWS CLI.
+      # Beanstalk handles the S3 upload.
+      - name: Deploy to Elastic Beanstalk
+        run: |
+          aws elasticbeanstalk create-application-version \
+            --application-name ${{ env.EB_APP_NAME }} \
+            --version-label ${{ env.VERSION_LABEL }} \
+            --source-bundle S3Bucket="elasticbeanstalk-${{ env.AWS_REGION }}-$(aws sts get-caller-identity --query Account --output text)",S3Key="${{ env.DEPLOY_PACKAGE_NAME }}" \
+            --auto-create-application || echo "Version already exists, continuing..."
+            
+          # The deployment action below handles the package upload and deployment.
+          
+      - name: Deploy via Community Action
+        uses: einaregilsson/beanstalk-deploy@v22
+        with:
+          aws_access_key: ""
+          aws_secret_key: ""
+          aws_session_token: ${{ env.AWS_SESSION_TOKEN }} # Set by configure-aws-credentials.
+          application_name: ${{ env.EB_APP_NAME }}
+          environment_name: ${{ env.EB_ENV_NAME }}
+          version_label: ${{ env.VERSION_LABEL }}
+          region: ${{ env.AWS_REGION }}
+          deployment_package: ${{ env.DEPLOY_PACKAGE_NAME }}
+
+      # Check that the deployed health endpoint responds successfully.
+      - name: Post-Deployment Smoke Test
+        run: |
+          LIVE_URL="http://node-native-api-env.eba-sjmwdp2n.us-east-2.elasticbeanstalk.com/health"
+          echo "Waiting 30 seconds for Beanstalk to finish swapping instances..."
+          sleep 30
+          
+          HTTP_STATUS=$(curl -o /dev/null -s -w "%{http_code}\n" $LIVE_URL)
+          
+          if [ "$HTTP_STATUS" -ne 200 ]; then
+            echo "Smoke test failed! Expected 200 OK, got $HTTP_STATUS"
+            exit 1
+          fi
+          echo "Deployment successful! Live endpoint is healthy."
